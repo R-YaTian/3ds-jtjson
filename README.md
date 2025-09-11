@@ -1,7 +1,11 @@
-# JSON for Classic C++
+# JSON for C++ 17 (Support building with the 3ds toolchain)
 
-json.cpp is a baroque JSON parsing / serialization library for C++.
+3ds-jtjson is a baroque JSON parsing / serialization library for C++.
 
+## Building
+Run `catnip -T 3ds -S . -B build install`
+
+## Introduction
 This project is a reaction against <https://github.com/nlohmann/json/>
 which provides a modern C++ library for JSON. Our alternative:
 
