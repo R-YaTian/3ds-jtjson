@@ -244,6 +244,22 @@ class Json
     void setArray();
     void setObject();
 
+    template<typename T>
+    void push_back(T&& value)
+    {
+        if (!is_array())
+            setArray();
+        array_value.emplace_back(std::forward<T>(value));
+    }
+
+    template<typename... Args>
+    void emplace_back(Args&&... args)
+    {
+        if (!is_array())
+            setArray();
+        array_value.emplace_back(std::forward<Args>(args)...);
+    }
+
     std::string toString() const;
     std::string toStringPretty() const;
     std::string dump() const;
