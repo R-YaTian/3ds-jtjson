@@ -1,11 +1,19 @@
 cmake_minimum_required(VERSION 3.15)
 project(jtjson)
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include(GNUInstallDirs)
 
-# Add double-conversion library
-add_library(double-conversion STATIC
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+	set(CMAKE_INSTALL_PREFIX "${DKP_INSTALL_PREFIX_INIT}" CACHE PATH "" FORCE)
+endif()
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
+
+# Main JSON library
+add_library(jtjson STATIC
+    json.cpp
     double-conversion/bignum.cc
     double-conversion/bignum-dtoa.cc
     double-conversion/cached-powers.cc
@@ -15,33 +23,18 @@ add_library(double-conversion STATIC
     double-conversion/string-to-double.cc
     double-conversion/strtod.cc
 )
-target_include_directories(double-conversion PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Main JSON library
-add_library(json STATIC
-    json.cpp
-)
-target_link_libraries(json PRIVATE double-conversion)
+target_include_directories(jtjson PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Tests
-add_executable(json_test json_test.cpp)
-target_link_libraries(json_test PRIVATE json)
-
-add_executable(jsontestsuite_test jsontestsuite_test.cpp)
-target_link_libraries(jsontestsuite_test PRIVATE json)
-
-# Copy test data to build directory
-add_custom_command(
-    TARGET jsontestsuite_test POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/JSONTestSuite
-        ${CMAKE_CURRENT_BINARY_DIR}/JSONTestSuite
+# Install the library
+install(
+	TARGETS jtjson
+	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
-enable_testing()
-add_test(NAME json_test COMMAND json_test)
-add_test(
-    NAME jsontestsuite_test 
-    COMMAND jsontestsuite_test
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+# Install headers
+install(
+    FILES ${PROJECT_SOURCE_DIR}/json.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    RENAME jtjson.h
 )

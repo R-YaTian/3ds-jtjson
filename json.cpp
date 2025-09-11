@@ -23,7 +23,6 @@
 #include <climits>
 #include <cstdint>
 #include <cstdlib>
-#include <stdexcept>
 
 #include "double-conversion/double-to-string.h"
 #include "double-conversion/string-to-double.h"
@@ -76,12 +75,6 @@
        ? (((((wc) - 0x10000) >> 10) + 0xD800) | \
           (unsigned)((((wc) - 0x10000) & 1023) + 0xDC00) << 16) \
        : 0xFFFD)
-
-#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
-#define ON_LOGIC_ERROR(s) throw std::logic_error(s)
-#else
-#define ON_LOGIC_ERROR(s) abort()
-#endif
 
 namespace jt {
 
@@ -510,6 +503,17 @@ Json::getDouble() const
     }
 }
 
+const std::string&
+Json::getString() const
+{
+    switch (type_) {
+        case String:
+            return string_value;
+        default:
+            ON_LOGIC_ERROR("JSON value is not a string.");
+    }
+}
+
 std::string&
 Json::getString()
 {
@@ -564,7 +568,7 @@ Json::setObject()
 bool
 Json::contains(const std::string& key) const
 {
-    if (!isObject())
+    if (!is_object())
         return false;
     return object_value.find(key) != object_value.end();
 }
@@ -572,7 +576,7 @@ Json::contains(const std::string& key) const
 Json&
 Json::operator[](size_t index)
 {
-    if (!isArray())
+    if (!is_array())
         setArray();
     if (index >= array_value.size()) {
         array_value.resize(index + 1);
@@ -583,7 +587,7 @@ Json::operator[](size_t index)
 Json&
 Json::operator[](const std::string& key)
 {
-    if (!isObject())
+    if (!is_object())
         setObject();
     return object_value[key];
 }
@@ -602,6 +606,12 @@ Json::toStringPretty() const
     std::string b;
     marshal(b, true, 0);
     return b;
+}
+
+std::string
+Json::dump() const
+{
+    return toStringPretty();
 }
 
 void
@@ -747,7 +757,8 @@ Json::serialize(std::string& sb, const std::string& s)
                 sb += "\\/";
                 break;
             case 7:
-                sb += "\\\"";
+                if (i != 1 && i != s.size())
+                    sb += "\\\"";
                 break;
             case 9:
                 w = EncodeUtf16(x);
@@ -957,7 +968,7 @@ Json::parse(Json& json, const char*& p, const char* e, int context, int depth)
                         return success;
                     if (status != success)
                         return status;
-                    if (!key.isString())
+                    if (!key.is_string())
                         return object_key_must_be_string;
                     status = parse(value, p, e, COLON, depth - 1);
                     if (status == absent_value)
@@ -1221,7 +1232,7 @@ Json::parse(Json& json, const char*& p, const char* e, int context, int depth)
     return unexpected_eof;
 }
 
-std::pair<Json::Status, Json>
+Json
 Json::parse(const std::string& s)
 {
     Json::Status s2;
@@ -1235,7 +1246,7 @@ Json::parse(const std::string& s)
         if (s2 != absent_value)
             res.first = trailing_content;
     }
-    return res;
+    return res.second;
 }
 
 const char*
@@ -1310,6 +1321,37 @@ Json::StatusToString(Json::Status status)
             return "non_del_c0_control_code_in_string";
         default:
             ON_LOGIC_ERROR("Unhandled Json status value.");
+    }
+}
+
+bool Json::empty() const
+{
+    switch (type_)
+    {
+        case Null:
+        {
+            return true;
+        }
+
+        case Array:
+        {
+            return array_value.empty();
+        }
+
+        case Object:
+        {
+            return object_value.empty();
+        }
+
+        case String:
+        case Bool:
+        case Long:
+        case Float:
+        case Double:
+        default:
+        {
+            return false;
+        }
     }
 }
 

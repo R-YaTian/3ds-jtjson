@@ -19,6 +19,14 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <stdexcept>
+#include <type_traits>
+
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+#define ON_LOGIC_ERROR(s) throw std::logic_error(s)
+#else
+#define ON_LOGIC_ERROR(s) abort()
+#endif
 
 namespace jt {
 
@@ -89,7 +97,8 @@ class Json
 
   public:
     static const char* StatusToString(Status);
-    static std::pair<Status, Json> parse(const std::string&);
+    static Json parse(const std::string&);
+    bool empty() const;
 
     Json(const Json&);
     Json(Json&&);
@@ -140,47 +149,47 @@ class Json
         return type_;
     }
 
-    bool isNull() const
+    bool is_null() const
     {
         return type_ == Null;
     }
 
-    bool isBool() const
+    bool is_boolean() const
     {
         return type_ == Bool;
     }
 
-    bool isNumber() const
+    bool is_number() const
     {
-        return isFloat() || isDouble() || isLong();
+        return is_number_float() || is_number_double() || is_number_integer();
     }
 
-    bool isLong() const
+    bool is_number_integer() const
     {
         return type_ == Long;
     }
 
-    bool isFloat() const
+    bool is_number_float() const
     {
         return type_ == Float;
     }
 
-    bool isDouble() const
+    bool is_number_double() const
     {
         return type_ == Double;
     }
 
-    bool isString() const
+    bool is_string() const
     {
         return type_ == String;
     }
 
-    bool isArray() const
+    bool is_array() const
     {
         return type_ == Array;
     }
 
-    bool isObject() const
+    bool is_object() const
     {
         return type_ == Object;
     }
@@ -190,9 +199,45 @@ class Json
     double getDouble() const;
     double getNumber() const;
     long long getLong() const;
+    const std::string& getString() const;
     std::string& getString();
     std::vector<Json>& getArray();
     std::map<std::string, Json>& getObject();
+
+    template<typename T>
+    T get() const
+    {
+        if constexpr (std::is_same_v<T, bool>) {
+            return getBool();
+        } else if constexpr (std::is_same_v<T, float>) {
+            return getFloat();
+        } else if constexpr (std::is_same_v<T, double>) {
+            return getDouble();
+        } else if constexpr (std::is_same_v<T, std::string>) {
+            return getString();
+        } else if (is_number_integer()) {
+            return static_cast<T>(getLong());
+        } else {
+            ON_LOGIC_ERROR("Unsupported type for Json::get<T>()");
+        }
+    }
+
+    template<typename ValueType>
+    ValueType value(const std::string& key, const ValueType& default_value) const
+    {
+        // value only works for objects
+        if (is_object()) {
+            // if key is found, return value and given default value otherwise
+            const auto& obj = object_value;
+            auto it = obj.find(key);
+            if (it != obj.end()) {
+                return it->second.template get<ValueType>();
+            }
+            return default_value;
+        }
+
+        ON_LOGIC_ERROR("cannot use value() with non-object type");
+    }
 
     bool contains(const std::string&) const;
 
@@ -201,6 +246,7 @@ class Json
 
     std::string toString() const;
     std::string toStringPretty() const;
+    std::string dump() const;
 
     Json& operator=(const Json&);
     Json& operator=(Json&&);
