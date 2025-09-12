@@ -92,12 +92,16 @@ class Json
         long long long_value;
         std::string string_value;
         std::vector<Json> array_value;
-        std::map<std::string, Json> object_value;
+        struct {
+            std::map<std::string, Json> object_value;
+            std::vector<std::string> object_order;
+            bool ordered = false;
+        } object_data;
     };
 
   public:
     static const char* StatusToString(Status);
-    static Json parse(const std::string&);
+    static Json parse(const std::string&, bool store_object_order = false);
     bool empty() const;
 
     Json(const Json&);
@@ -203,6 +207,7 @@ class Json
     std::string& getString();
     std::vector<Json>& getArray();
     std::map<std::string, Json>& getObject();
+    std::vector<std::string>& getObjectOrder();
 
     template<typename T>
     T get() const
@@ -228,7 +233,7 @@ class Json
         // value only works for objects
         if (is_object()) {
             // if key is found, return value and given default value otherwise
-            const auto& obj = object_value;
+            const auto& obj = object_data.object_value;
             auto it = obj.find(key);
             if (it != obj.end()) {
                 return it->second.template get<ValueType>();
@@ -242,7 +247,7 @@ class Json
     bool contains(const std::string&) const;
 
     void setArray();
-    void setObject();
+    void setObject(bool ordered = false);
 
     template<typename T>
     void push_back(T&& value)
@@ -260,9 +265,9 @@ class Json
         array_value.emplace_back(std::forward<Args>(args)...);
     }
 
-    std::string toString() const;
-    std::string toStringPretty() const;
-    std::string dump() const;
+    std::string toString(bool preserve_object_order = false) const;
+    std::string toStringPretty(bool preserve_object_order = false) const;
+    std::string dump(int indent = -1, bool preserve_object_order = false) const;
 
     Json& operator=(const Json&);
     Json& operator=(Json&&);
@@ -277,10 +282,10 @@ class Json
 
   private:
     void clear();
-    void marshal(std::string&, bool, int) const;
+    void marshal(std::string&, bool, int, int, bool preserve_object_order = false) const;
     static void stringify(std::string&, const std::string&);
     static void serialize(std::string&, const std::string&);
-    static Status parse(Json&, const char*&, const char*, int, int);
+    static Status parse(Json&, const char*&, const char*, int, int, bool store_object_order = false);
 };
 
 } // namespace jt

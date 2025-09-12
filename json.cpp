@@ -288,7 +288,9 @@ Json::clear()
             array_value.~vector();
             break;
         case Object:
-            object_value.~map();
+            object_data.ordered = false;
+            object_data.object_value.~map();
+            object_data.object_order.~vector();
             break;
         default:
             break;
@@ -320,7 +322,9 @@ Json::Json(const Json& other) : type_(other.type_)
             new (&array_value) std::vector<Json>(other.array_value);
             break;
         case Object:
-            new (&object_value) std::map<std::string, Json>(other.object_value);
+            object_data.ordered = other.object_data.ordered;
+            new (&object_data.object_value) std::map<std::string, Json>(other.object_data.object_value);
+            new (&object_data.object_order) std::vector<std::string>(other.object_data.object_order);
             break;
         default:
             ON_LOGIC_ERROR("Unhandled JSON type.");
@@ -356,8 +360,10 @@ Json::operator=(const Json& other)
                 new (&array_value) std::vector<Json>(other.array_value);
                 break;
             case Object:
-                new (&object_value)
-                  std::map<std::string, Json>(other.object_value);
+                object_data.ordered = other.object_data.ordered;
+                new (&object_data.object_value)
+                  std::map<std::string, Json>(other.object_data.object_value);
+                new (&object_data.object_order) std::vector<std::string>(other.object_data.object_order);
                 break;
             default:
                 ON_LOGIC_ERROR("Unhandled JSON type.");
@@ -390,8 +396,10 @@ Json::Json(Json&& other) : type_(other.type_)
             new (&array_value) std::vector<Json>(std::move(other.array_value));
             break;
         case Object:
-            new (&object_value)
-              std::map<std::string, Json>(std::move(other.object_value));
+            object_data.ordered = other.object_data.ordered;
+            new (&object_data.object_value)
+              std::map<std::string, Json>(std::move(other.object_data.object_value));
+            new (&object_data.object_order) std::vector<std::string>(std::move(other.object_data.object_order));
             break;
         default:
             ON_LOGIC_ERROR("Unhandled JSON type.");
@@ -429,8 +437,10 @@ Json::operator=(Json&& other)
                   std::vector<Json>(std::move(other.array_value));
                 break;
             case Object:
-                new (&object_value)
-                  std::map<std::string, Json>(std::move(other.object_value));
+                object_data.ordered = other.object_data.ordered;
+                new (&object_data.object_value)
+                  std::map<std::string, Json>(std::move(other.object_data.object_value));
+                new (&object_data.object_order) std::vector<std::string>(std::move(other.object_data.object_order));
                 break;
             default:
                 ON_LOGIC_ERROR("Unhandled JSON type.");;
@@ -541,7 +551,18 @@ Json::getObject()
 {
     switch (type_) {
         case Object:
-            return object_value;
+            return object_data.object_value;
+        default:
+            ON_LOGIC_ERROR("JSON value is not an object.");
+    }
+}
+
+std::vector<std::string>&
+Json::getObjectOrder()
+{
+    switch (type_) {
+        case Object:
+            return object_data.object_order;
         default:
             ON_LOGIC_ERROR("JSON value is not an object.");
     }
@@ -557,12 +578,14 @@ Json::setArray()
 }
 
 void
-Json::setObject()
+Json::setObject(bool ordered)
 {
     if (type_ >= String)
         clear();
     type_ = Object;
-    new (&object_value) std::map<std::string, Json>();
+    object_data.ordered = ordered;
+    new (&object_data.object_value) std::map<std::string, Json>();
+    new (&object_data.object_order) std::vector<std::string>();
 }
 
 bool
@@ -570,7 +593,7 @@ Json::contains(const std::string& key) const
 {
     if (!is_object())
         return false;
-    return object_value.find(key) != object_value.end();
+    return object_data.object_value.find(key) != object_data.object_value.end();
 }
 
 Json&
@@ -589,33 +612,48 @@ Json::operator[](const std::string& key)
 {
     if (!is_object())
         setObject();
-    return object_value[key];
+
+    if (object_data.ordered)
+    {
+        auto it = object_data.object_value.find(key);
+        if (it == object_data.object_value.end())
+            object_data.object_order.push_back(key);
+    }
+
+    return object_data.object_value[key];
 }
 
 std::string
-Json::toString() const
+Json::toString(bool preserve_object_order) const
 {
     std::string b;
-    marshal(b, false, 0);
+    marshal(b, false, 0, 0, preserve_object_order);
     return b;
 }
 
 std::string
-Json::toStringPretty() const
+Json::toStringPretty(bool preserve_object_order) const
 {
     std::string b;
-    marshal(b, true, 0);
+    marshal(b, true, 0, 2, preserve_object_order);
     return b;
 }
 
 std::string
-Json::dump() const
+Json::dump(int indent, bool preserve_object_order) const
 {
-    return toStringPretty();
+    std::string b;
+
+    if (indent < 0)
+        marshal(b, false, 0, 0, preserve_object_order);
+    else
+        marshal(b, true, 0, indent, preserve_object_order);
+
+    return b;
 }
 
 void
-Json::marshal(std::string& b, bool pretty, int indent) const
+Json::marshal(std::string& b, bool pretty, int current_indent, int indent_step, bool preserve_object_order) const
 {
     switch (type_) {
         case Null:
@@ -654,12 +692,20 @@ Json::marshal(std::string& b, bool pretty, int indent) const
             for (auto i = array_value.begin(); i != array_value.end(); ++i) {
                 if (once) {
                     b += ',';
-                    if (pretty)
-                        b += ' ';
                 } else {
                     once = true;
                 }
-                i->marshal(b, pretty, indent);
+                if (pretty && array_value.size() > 1) {
+                    b += '\n';
+                    for (int j = 0; j < current_indent + indent_step; ++j)
+                        b += ' ';
+                }
+                i->marshal(b, pretty, current_indent + indent_step, indent_step, preserve_object_order);
+            }
+            if (pretty && array_value.size() > 1) {
+                b += '\n';
+                for (int j = 0; j < current_indent; ++j)
+                    b += ' ';
             }
             b += ']';
             break;
@@ -667,31 +713,49 @@ Json::marshal(std::string& b, bool pretty, int indent) const
         case Object: {
             bool once = false;
             b += '{';
-            for (auto i = object_value.begin(); i != object_value.end(); ++i) {
-                if (once) {
-                    b += ',';
-                } else {
-                    once = true;
+            if (preserve_object_order && object_data.ordered && object_data.object_order.size() == object_data.object_value.size())
+            {
+                for (auto it = object_data.object_order.begin(); it != object_data.object_order.end(); ++it) {
+                    auto val = object_data.object_value.find(*it);
+                    if (once) {
+                        b += ',';
+                    } else {
+                        once = true;
+                    }
+                    if (pretty && object_data.object_value.size() > 1) {
+                        b += '\n';
+                        for (int j = 0; j < current_indent + indent_step; ++j)
+                            b += ' ';
+                    }
+                    stringify(b, val->first);
+                    b += ':';
+                    if (pretty)
+                        b += ' ';
+                    val->second.marshal(b, pretty, current_indent + indent_step, indent_step, preserve_object_order);
                 }
-                if (pretty && object_value.size() > 1) {
-                    b += '\n';
-                    ++indent;
-                    for (int j = 0; j < indent; ++j)
-                        b += "  ";
+            } else {
+                for (auto it = object_data.object_value.begin(); it != object_data.object_value.end(); ++it) {
+                    if (once) {
+                        b += ',';
+                    } else {
+                        once = true;
+                    }
+                    if (pretty && object_data.object_value.size() > 1) {
+                        b += '\n';
+                        for (int j = 0; j < current_indent + indent_step; ++j)
+                            b += ' ';
+                    }
+                    stringify(b, it->first);
+                    b += ':';
+                    if (pretty)
+                        b += ' ';
+                    it->second.marshal(b, pretty, current_indent + indent_step, indent_step, preserve_object_order);
                 }
-                stringify(b, i->first);
-                b += ':';
-                if (pretty)
-                    b += ' ';
-                i->second.marshal(b, pretty, indent);
-                if (pretty && object_value.size() > 1)
-                    --indent;
             }
-            if (pretty && object_value.size() > 1) {
+            if (pretty && object_data.object_value.size() > 1) {
                 b += '\n';
-                for (int j = 0; j < indent; ++j)
-                    b += "  ";
-                ++indent;
+                for (int j = 0; j < current_indent; ++j)
+                    b += ' ';
             }
             b += '}';
             break;
@@ -780,7 +844,7 @@ Json::serialize(std::string& sb, const std::string& s)
 }
 
 Json::Status
-Json::parse(Json& json, const char*& p, const char* e, int context, int depth)
+Json::parse(Json& json, const char*& p, const char* e, int context, int depth, bool store_object_order)
 {
     char w[4];
     long long x;
@@ -936,7 +1000,7 @@ Json::parse(Json& json, const char*& p, const char* e, int context, int depth)
                 json.setArray();
                 Json value;
                 for (context = ARRAY, i = 0;;) {
-                    Status status = parse(value, p, e, context, depth - 1);
+                    Status status = parse(value, p, e, context, depth - 1, store_object_order);
                     if (status == absent_value)
                         return success;
                     if (status != success)
@@ -959,23 +1023,25 @@ Json::parse(Json& json, const char*& p, const char* e, int context, int depth)
             case '{': { // Object
                 if (context & (COLON | COMMA | KEY))
                     goto OnColonCommaKey;
-                json.setObject();
+                json.setObject(store_object_order);
                 context = KEY | OBJECT;
                 Json key, value;
                 for (;;) {
-                    Status status = parse(key, p, e, context, depth - 1);
+                    Status status = parse(key, p, e, context, depth - 1, store_object_order);
                     if (status == absent_value)
                         return success;
                     if (status != success)
                         return status;
                     if (!key.is_string())
                         return object_key_must_be_string;
-                    status = parse(value, p, e, COLON, depth - 1);
+                    status = parse(value, p, e, COLON, depth - 1, store_object_order);
                     if (status == absent_value)
                         return object_missing_value;
                     if (status != success)
                         return status;
-                    json.object_value.emplace(std::move(key.string_value),
+                    if (store_object_order)
+                        json.object_data.object_order.push_back(key.getString());
+                    json.object_data.object_value.emplace(std::move(key.string_value),
                                               std::move(value));
                     context = KEY | COMMA | OBJECT;
                     key.clear();
@@ -1233,16 +1299,16 @@ Json::parse(Json& json, const char*& p, const char* e, int context, int depth)
 }
 
 Json
-Json::parse(const std::string& s)
+Json::parse(const std::string& s, bool store_object_order)
 {
     Json::Status s2;
     std::pair<Json::Status, Json> res;
     const char* p = s.data();
     const char* e = s.data() + s.size();
-    res.first = parse(res.second, p, e, 0, DEPTH);
+    res.first = parse(res.second, p, e, 0, DEPTH, store_object_order);
     if (res.first == Json::success) {
         Json j2;
-        s2 = parse(j2, p, e, 0, DEPTH);
+        s2 = parse(j2, p, e, 0, DEPTH, store_object_order);
         if (s2 != absent_value)
             res.first = trailing_content;
     }
@@ -1340,7 +1406,7 @@ bool Json::empty() const
 
         case Object:
         {
-            return object_value.empty();
+            return object_data.object_value.empty();
         }
 
         case String:
