@@ -513,7 +513,7 @@ class Json
     static void serialize(std::string&, const std::string&);
     static Status parse(Json&, const char*&, const char*, int, int, bool store_object_order = false);
 
-#if __cplusplus < 201703L
+#if !defined(JTJSON_USE_CONSTEXPR_IF)
     template<typename T>
     typename std::enable_if<std::is_same<T, bool>::value, T>::type
     _get() const
