@@ -225,7 +225,7 @@ class Json
     template<typename T>
     T get() const
     {
-#if __cplusplus >= 201703L
+#if __cplusplus >= 201703L && defined(JTJSON_USE_CONSTEXPR_IF)
         if constexpr (std::is_same_v<T, bool>) {
             return getBool();
         } else if constexpr (std::is_same_v<T, float>) {
