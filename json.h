@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 #include <cstdio>
+#include <iterator>
 #include <type_traits>
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__)
@@ -39,6 +40,10 @@ namespace jt {
 
 class Json
 {
+  public:
+    class iterator;
+    class const_iterator;
+
   public:
     enum Type
     {
@@ -302,6 +307,200 @@ class Json
     {
         return toString();
     }
+
+    iterator begin();
+    iterator end();
+    const_iterator begin() const;
+    const_iterator end() const;
+    const_iterator cbegin() const { return begin(); }
+    const_iterator cend() const { return end(); }
+
+    class iterator
+    {
+      public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = Json;
+        using difference_type = std::ptrdiff_t;
+        using pointer = Json*;
+        using reference = Json&;
+
+      private:
+        Json* json_ptr_;
+        std::vector<Json>::iterator array_it_;
+        std::map<std::string, Json>::iterator object_it_;
+
+        friend class const_iterator;
+
+      public:
+        iterator() : json_ptr_(nullptr) {}
+
+        iterator(Json* json) : json_ptr_(json)
+        {
+            if (json_ptr_ && json_ptr_->is_array()) {
+                array_it_ = json_ptr_->array_value.begin();
+            } else if (json_ptr_ && json_ptr_->is_object()) {
+                object_it_ = json_ptr_->object_data.object_value.begin();
+            }
+        }
+
+        iterator(Json* json, std::vector<Json>::iterator it) : json_ptr_(json), array_it_(it) {}
+        iterator(Json* json, std::map<std::string, Json>::iterator it) : json_ptr_(json), object_it_(it) {}
+
+        reference operator*()
+        {
+            if (json_ptr_->is_array()) {
+                return *array_it_;
+            } else if (json_ptr_->is_object()) {
+                return object_it_->second;
+            } else {
+                return *json_ptr_;
+            }
+        }
+
+        pointer operator->() { return &(operator*()); }
+
+        iterator& operator++()
+        {
+            if (json_ptr_->is_array()) {
+                ++array_it_;
+            } else if (json_ptr_->is_object()) {
+                ++object_it_;
+            }
+            return *this;
+        }
+
+        iterator operator++(int)
+        {
+            iterator tmp = *this;
+            ++(*this);
+            return tmp;
+        }
+
+        bool operator==(const iterator& other) const
+        {
+            if (json_ptr_ != other.json_ptr_) return false;
+            if (!json_ptr_) return true;
+
+            if (json_ptr_->is_array()) {
+                return array_it_ == other.array_it_;
+            } else if (json_ptr_->is_object()) {
+                return object_it_ == other.object_it_;
+            }
+
+            return true;
+        }
+
+        bool operator!=(const iterator& other) const
+        {
+            return !(*this == other);
+        }
+
+        const std::string& key() const
+        {
+            if (json_ptr_ && json_ptr_->is_object())
+                return object_it_->first;
+
+            ON_LOGIC_ERROR("cannot use key() with non-object iterator");
+        }
+    };
+
+    class const_iterator
+    {
+      public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = const Json;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const Json*;
+        using reference = const Json&;
+
+      private:
+        const Json* json_ptr_;
+        std::vector<Json>::const_iterator array_it_;
+        std::map<std::string, Json>::const_iterator object_it_;
+
+      public:
+        const_iterator() : json_ptr_(nullptr) {}
+
+        const_iterator(const Json* json) : json_ptr_(json)
+        {
+            if (json_ptr_ && json_ptr_->is_array()) {
+                array_it_ = json_ptr_->array_value.begin();
+            } else if (json_ptr_ && json_ptr_->is_object()) {
+                object_it_ = json_ptr_->object_data.object_value.begin();
+            }
+        }
+
+        const_iterator(const Json* json, std::vector<Json>::const_iterator it) : json_ptr_(json), array_it_(it) {}
+        const_iterator(const Json* json, std::map<std::string, Json>::const_iterator it) : json_ptr_(json), object_it_(it) {}
+
+        const_iterator(const iterator& it) : json_ptr_(it.json_ptr_)
+        {
+            if (json_ptr_ && json_ptr_->is_array()) {
+                array_it_ = it.array_it_;
+            } else if (json_ptr_ && json_ptr_->is_object()) {
+                object_it_ = it.object_it_;
+            }
+        }
+
+        reference operator*() const
+        {
+            if (json_ptr_->is_array()) {
+                return *array_it_;
+            } else if (json_ptr_->is_object()) {
+                return object_it_->second;
+            } else {
+                return *json_ptr_;
+            }
+        }
+
+        pointer operator->() const { return &(operator*()); }
+
+        const_iterator& operator++()
+        {
+            if (json_ptr_->is_array()) {
+                ++array_it_;
+            } else if (json_ptr_->is_object()) {
+                ++object_it_;
+            }
+            return *this;
+        }
+
+        const_iterator operator++(int)
+        {
+            const_iterator tmp = *this;
+            ++(*this);
+            return tmp;
+        }
+
+        bool operator==(const const_iterator& other) const
+        {
+            if (json_ptr_ != other.json_ptr_) return false;
+            if (!json_ptr_) return true;
+
+            if (json_ptr_->is_array()) {
+                return array_it_ == other.array_it_;
+            } else if (json_ptr_->is_object()) {
+                return object_it_ == other.object_it_;
+            }
+
+            return true;
+        }
+
+        bool operator!=(const const_iterator& other) const
+        {
+            return !(*this == other);
+        }
+
+        const std::string& key() const
+        {
+            if (json_ptr_ && json_ptr_->is_object())
+                return object_it_->first;
+
+            ON_LOGIC_ERROR("cannot use key() with non-object iterator");
+        }
+
+        friend class iterator;
+    };
 
   private:
     void clear();

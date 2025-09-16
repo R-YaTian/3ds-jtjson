@@ -625,7 +625,7 @@ Json::operator[](const std::string& key)
 const Json&
 Json::operator[](const std::string& key) const
 {
-    if (!is_object()) 
+    if (!is_object())
         ON_LOGIC_ERROR("cannot use operator[] with a string argument with non-object type");
 
     auto it = object_data.object_value.find(key);
@@ -1453,6 +1453,50 @@ bool Json::empty() const
         {
             return false;
         }
+    }
+}
+
+Json::iterator Json::begin()
+{
+    if (is_array()) {
+        return iterator(this, array_value.begin());
+    } else if (is_object()) {
+        return iterator(this, object_data.object_value.begin());
+    } else {
+        return iterator(this);
+    }
+}
+
+Json::iterator Json::end()
+{
+    if (is_array()) {
+        return iterator(this, array_value.end());
+    } else if (is_object()) {
+        return iterator(this, object_data.object_value.end());
+    } else {
+        return iterator(nullptr);
+    }
+}
+
+Json::const_iterator Json::begin() const
+{
+    if (is_array()) {
+        return const_iterator(this, array_value.begin());
+    } else if (is_object()) {
+        return const_iterator(this, object_data.object_value.begin());
+    } else {
+        return const_iterator(this);
+    }
+}
+
+Json::const_iterator Json::end() const
+{
+    if (is_array()) {
+        return const_iterator(this, array_value.end());
+    } else if (is_object()) {
+        return const_iterator(this, object_data.object_value.end());
+    } else {
+        return const_iterator(nullptr);
     }
 }
 
