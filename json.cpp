@@ -622,6 +622,19 @@ Json::operator[](const std::string& key)
     return object_data.object_value[key];
 }
 
+const Json&
+Json::operator[](const std::string& key) const
+{
+    if (!is_object()) 
+        ON_LOGIC_ERROR("cannot use operator[] with a string argument with non-object type");
+
+    auto it = object_data.object_value.find(key);
+    if (it != object_data.object_value.end())
+        return it->second;
+    else
+        ON_LOGIC_ERROR("key not found in const object");
+}
+
 std::string
 Json::toString(bool preserve_object_order) const
 {

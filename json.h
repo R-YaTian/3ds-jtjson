@@ -22,7 +22,11 @@
 #include <cstdio>
 #include <type_traits>
 
+#if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__)
+#define JTJSON_NOSTDEXCEPT 0
+#else
 #define JTJSON_NOSTDEXCEPT 1
+#endif
 
 #if (defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)) && !JTJSON_NOSTDEXCEPT
 #include <stdexcept>
@@ -278,6 +282,21 @@ class Json
 
     Json& operator[](size_t);
     Json& operator[](const std::string&);
+    const Json& operator[](const std::string&) const;
+
+    operator std::map<std::string, Json>&()
+    {
+        if (!is_object())
+            setObject();
+        return getObject();
+    }
+
+    operator std::vector<Json>&()
+    {
+        if (!is_array())
+            setArray();
+        return getArray();
+    }
 
     operator std::string() const
     {
