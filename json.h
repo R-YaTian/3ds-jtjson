@@ -19,10 +19,13 @@
 #include <map>
 #include <string>
 #include <vector>
-#include <stdexcept>
+#include <cstdio>
 #include <type_traits>
 
-#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+#define JTJSON_NOSTDEXCEPT 1
+
+#if (defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)) && !JTJSON_NOSTDEXCEPT
+#include <stdexcept>
 #define ON_LOGIC_ERROR(s) throw std::logic_error(s)
 #else
 #define ON_LOGIC_ERROR(s) abort()
@@ -102,6 +105,7 @@ class Json
   public:
     static const char* StatusToString(Status);
     static Json parse(const std::string&, bool store_object_order = false);
+    static Json parse(FILE*, bool store_object_order = false);
     bool empty() const;
 
     Json(const Json&);

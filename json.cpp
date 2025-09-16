@@ -18,7 +18,6 @@
 #include "json.h"
 #include "jtckdint.h"
 
-#include <cassert>
 #include <cctype>
 #include <climits>
 #include <cstdint>
@@ -626,6 +625,9 @@ Json::operator[](const std::string& key)
 std::string
 Json::toString(bool preserve_object_order) const
 {
+    if (type_ == String)
+        return string_value;
+
     std::string b;
     marshal(b, false, 0, 0, preserve_object_order);
     return b;
@@ -634,6 +636,9 @@ Json::toString(bool preserve_object_order) const
 std::string
 Json::toStringPretty(bool preserve_object_order) const
 {
+    if (type_ == String)
+        return string_value;
+
     std::string b;
     marshal(b, true, 0, 2, preserve_object_order);
     return b;
@@ -695,14 +700,14 @@ Json::marshal(std::string& b, bool pretty, int current_indent, int indent_step, 
                 } else {
                     once = true;
                 }
-                if (pretty && array_value.size() > 1) {
+                if (pretty) {
                     b += '\n';
                     for (int j = 0; j < current_indent + indent_step; ++j)
                         b += ' ';
                 }
                 i->marshal(b, pretty, current_indent + indent_step, indent_step, preserve_object_order);
             }
-            if (pretty && array_value.size() > 1) {
+            if (pretty) {
                 b += '\n';
                 for (int j = 0; j < current_indent; ++j)
                     b += ' ';
@@ -722,7 +727,7 @@ Json::marshal(std::string& b, bool pretty, int current_indent, int indent_step, 
                     } else {
                         once = true;
                     }
-                    if (pretty && object_data.object_value.size() > 1) {
+                    if (pretty) {
                         b += '\n';
                         for (int j = 0; j < current_indent + indent_step; ++j)
                             b += ' ';
@@ -740,7 +745,7 @@ Json::marshal(std::string& b, bool pretty, int current_indent, int indent_step, 
                     } else {
                         once = true;
                     }
-                    if (pretty && object_data.object_value.size() > 1) {
+                    if (pretty) {
                         b += '\n';
                         for (int j = 0; j < current_indent + indent_step; ++j)
                             b += ' ';
@@ -752,7 +757,7 @@ Json::marshal(std::string& b, bool pretty, int current_indent, int indent_step, 
                     it->second.marshal(b, pretty, current_indent + indent_step, indent_step, preserve_object_order);
                 }
             }
-            if (pretty && object_data.object_value.size() > 1) {
+            if (pretty) {
                 b += '\n';
                 for (int j = 0; j < current_indent; ++j)
                     b += ' ';
@@ -821,8 +826,7 @@ Json::serialize(std::string& sb, const std::string& s)
                 sb += "\\/";
                 break;
             case 7:
-                if (i != 1 && i != s.size())
-                    sb += "\\\"";
+                sb += "\\\"";
                 break;
             case 9:
                 w = EncodeUtf16(x);
@@ -1313,6 +1317,24 @@ Json::parse(const std::string& s, bool store_object_order)
             res.first = trailing_content;
     }
     return res.second;
+}
+
+Json
+Json::parse(FILE* file, bool store_object_order)
+{
+    long current_pos = ftell(file);
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, current_pos, SEEK_SET);
+
+    long bytes_to_read = file_size - current_pos;
+    std::string content;
+    content.resize(static_cast<size_t>(bytes_to_read));
+
+    size_t bytes_read = fread(&content[0], 1, static_cast<size_t>(bytes_to_read), file);
+    content.resize(bytes_read);
+
+    return parse(content, store_object_order);
 }
 
 const char*
