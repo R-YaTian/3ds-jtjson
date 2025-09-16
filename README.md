@@ -1,4 +1,4 @@
-# JSON for C++ 17 (Support building with the 3ds toolchain)
+# JSON for Classic C++ (Support building with the 3ds toolchain)
 
 3ds-jtjson is a baroque JSON parsing / serialization library for C++.
 

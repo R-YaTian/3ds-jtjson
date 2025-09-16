@@ -225,6 +225,7 @@ class Json
     template<typename T>
     T get() const
     {
+#if __cplusplus >= 201703L
         if constexpr (std::is_same_v<T, bool>) {
             return getBool();
         } else if constexpr (std::is_same_v<T, float>) {
@@ -238,6 +239,9 @@ class Json
         } else {
             ON_LOGIC_ERROR("Unsupported type for Json::get<T>()");
         }
+#else
+        return _get<T>();
+#endif
     }
 
     template<typename ValueType>
@@ -508,6 +512,50 @@ class Json
     static void stringify(std::string&, const std::string&);
     static void serialize(std::string&, const std::string&);
     static Status parse(Json&, const char*&, const char*, int, int, bool store_object_order = false);
+
+#if __cplusplus < 201703L
+    template<typename T>
+    typename std::enable_if<std::is_same<T, bool>::value, T>::type
+    _get() const
+    {
+        return getBool();
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_same<T, float>::value, T>::type
+    _get() const
+    {
+        return getFloat();
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_same<T, double>::value, T>::type
+    _get() const
+    {
+        return getDouble();
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_same<T, std::string>::value, T>::type
+    _get() const
+    {
+        return getString();
+    }
+
+    template<typename T>
+    typename std::enable_if<!std::is_same<T, bool>::value && 
+                            !std::is_same<T, float>::value && 
+                            !std::is_same<T, double>::value && 
+                            !std::is_same<T, std::string>::value, T>::type
+    _get() const
+    {
+        if (is_number_integer()) {
+            return static_cast<T>(getLong());
+        } else {
+            ON_LOGIC_ERROR("Unsupported type for Json::get<T>()");
+        }
+    }
+#endif
 };
 
 } // namespace jt
