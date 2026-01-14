@@ -331,9 +331,10 @@ Json::Json(const Json& other) : type_(other.type_)
 }
 
 Json&
-Json::operator=(const Json& other)
+Json::operator=(const Json& _other)
 {
-    if (this != &other) {
+    if (this != &_other) {
+        Json other(_other);
         if (type_ >= String)
             clear();
         type_ = other.type_;
@@ -407,9 +408,10 @@ Json::Json(Json&& other) : type_(other.type_)
 }
 
 Json&
-Json::operator=(Json&& other)
+Json::operator=(Json&& _other)
 {
-    if (this != &other) {
+    if (this != &_other) {
+        Json other(_other);
         if (type_ >= String)
             clear();
         type_ = other.type_;
@@ -836,7 +838,7 @@ Json::serialize(std::string& sb, const std::string& s)
                 sb += "\\\\";
                 break;
             case 6:
-                sb += "\\/";
+                sb += '/';
                 break;
             case 7:
                 sb += "\\\"";
