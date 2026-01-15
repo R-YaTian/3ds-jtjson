@@ -116,6 +116,7 @@ class Json
     static Json parse(const std::string&, bool store_object_order = false);
     static Json parse(FILE*, bool store_object_order = false);
     bool empty() const;
+    size_t size() const;
 
     Json(const Json&);
     Json(Json&&);

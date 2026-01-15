@@ -334,6 +334,7 @@ Json&
 Json::operator=(const Json& _other)
 {
     if (this != &_other) {
+        // Use temporary to avoid self-aliasing assignment like: x = x["key"]
         Json other(_other);
         if (type_ >= String)
             clear();
@@ -354,20 +355,21 @@ Json::operator=(const Json& _other)
                 double_value = other.double_value;
                 break;
             case String:
-                new (&string_value) std::string(other.string_value);
+                new (&string_value) std::string(std::move(other.string_value));
                 break;
             case Array:
-                new (&array_value) std::vector<Json>(other.array_value);
+                new (&array_value) std::vector<Json>(std::move(other.array_value));
                 break;
             case Object:
                 object_data.ordered = other.object_data.ordered;
                 new (&object_data.object_value)
-                  std::map<std::string, Json>(other.object_data.object_value);
-                new (&object_data.object_order) std::vector<std::string>(other.object_data.object_order);
+                  std::map<std::string, Json>(std::move(other.object_data.object_value));
+                new (&object_data.object_order) std::vector<std::string>(std::move(other.object_data.object_order));
                 break;
             default:
                 ON_LOGIC_ERROR("Unhandled JSON type.");
         }
+        other.type_ = Null;
     }
     return *this;
 }
@@ -411,7 +413,8 @@ Json&
 Json::operator=(Json&& _other)
 {
     if (this != &_other) {
-        Json other(_other);
+        // Use temporary to avoid self-aliasing assignment like: x = x["key"]
+        Json other(std::move(_other));
         if (type_ >= String)
             clear();
         type_ = other.type_;
@@ -444,7 +447,7 @@ Json::operator=(Json&& _other)
                 new (&object_data.object_order) std::vector<std::string>(std::move(other.object_data.object_order));
                 break;
             default:
-                ON_LOGIC_ERROR("Unhandled JSON type.");;
+                ON_LOGIC_ERROR("Unhandled JSON type.");
         }
         other.type_ = Null;
     }
@@ -1454,6 +1457,32 @@ bool Json::empty() const
         default:
         {
             return false;
+        }
+    }
+}
+
+size_t Json::size() const
+{
+    switch (type_)
+    {
+        case Null:
+        {
+            return 0;
+        }
+
+        case Array:
+        {
+            return array_value.size();
+        }
+
+        case Object:
+        {
+            return object_data.object_value.size();
+        }
+
+        default:
+        {
+            return 1;
         }
     }
 }
